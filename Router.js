@@ -135,6 +135,40 @@ RouterListRouter.prototype.unshiftRoute = function(r){
  return this.routes.unshift(r);
 }
 
+
+function I(x){return x;}
+function DictionaryRouter(dict, outputFilter, inputFilter){
+ //outputFilter transforms the result of the dictionary lookup into a responder
+ //so you can use data instead of code in your dictionaries
+ //inputFilter transforms the request path into a dictionary key
+ if(arguments.length < 3) inputFilter = I;
+ if(arguments.length < 2) outputFilter = I;
+ Router.call(
+  this,
+  new UrlMatcher(this.match.bind(this)),
+  this.respond.bind(this)
+ );
+ this.dict = dict;
+ this.outputFilter = outputFilter;
+ this.inputFilter = inputFilter;
+}
+util.inherits(DictionaryRouter, Router);
+DictionaryRouter.prototype.match = function matchUrl(u){
+ return coerceToFunction(this.inputFilter)(u) in this.dict;
+};
+DictionaryRouter.prototype.respond = function respond(req, res){
+ var k = coerceToFunction(this.inputFilter)(req.url);
+ function fail(q, s){
+  s.statusCode = 500;
+  s.end("error");
+ }
+ if(!(k in this.dict)) return fail(req, res);// it should not have gotten this far
+ var responder = coerceToFunction(this.outputFilter)(this.dict[k]);
+ if(!responder) return fail(req, res);
+ return responder(req, res);
+};
+
+
 function ExactDictRouter(dict){
  RouterListRouter.call(
   this,
@@ -198,17 +232,21 @@ function MethodRoutingResponder(responders){
 util.inherits(MethodRoutingResponder, Functor);
 MethodRoutingResponder.prototype.respond = function respond(req, res){
  var responders = this.responders;
-	if(req.method in responders)
-	    return responders[req.method](req, res);
-	//TODO: check if method is allowed at all for 501
-	res.writeHead(405, "This object doesn't support that method.");
-	res.end("no, you can't do that to this");
+ if(req.method in responders)
+  return responders[req.method](req, res);
+ //TODO: check if method is allowed at all for 501
+ //TODO: MUST include an Allow header
+ //cf. http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html 
+ res.writeHead(405, "This object doesn't support that method.");
+ res.end("no, you can't do that to this");
 }
+
 
 this.coerceToFunction = coerceToFunction;
 this.Functor = Functor;
 
 this.Router = Router;
+this.DictionaryRouter = DictionaryRouter;
 this.ExactRouter = ExactRouter;
 this.RouterListRouter = RouterListRouter;
 this.ExactDictRouter = ExactDictRouter;
