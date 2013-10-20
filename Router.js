@@ -233,7 +233,7 @@ util.inherits(MethodRoutingResponder, Functor);
 MethodRoutingResponder.prototype.respond = function respond(req, res){
  var responders = this.responders;
  if(req.method in responders)
-  return responders[req.method](req, res);
+  return responders[req.method].apply(this, arguments);
  //TODO: check if method is allowed at all for 501
  //TODO: MUST include an Allow header
  //cf. http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html 
